@@ -12,6 +12,7 @@ export default function ChatPage() {
   const [searchUser, setSearchUser] = useState("");
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef(null);
+  const [showUserDetails, setShowUserDetails] = useState(false);
   const messagesEndRef = useRef(null);
 
   const [chatMessages, setChatMessages] = useState([
@@ -400,68 +401,79 @@ export default function ChatPage() {
                 </div>
 
                 {/* Header Actions */}
-                <div className="hidden md:flex items-center gap-1">
-                  <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                    <svg
-                      className="w-5 h-5 text-gray-500"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                      />
-                    </svg>
-                  </button>
-                  <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                    <svg
-                      className="w-5 h-5 text-green-500"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-                      />
-                    </svg>
-                  </button>
-                  <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                    <svg
-                      className="w-5 h-5 text-blue-500"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14m-9 4h8a2 2 0 002-2V8a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2z"
-                      />
-                    </svg>
-                  </button>
-                  <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                    <svg
-                      className="w-5 h-5 text-gray-500"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M12 5v.01M12 12v.01M12 19v.01"
-                      />
-                    </svg>
-                  </button>
-                </div>
+               {/* Header Actions */}
+<div className="hidden md:flex items-center gap-1">
+  {/* Search Button */}
+  <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+    <svg
+      className="w-5 h-5 text-gray-500"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+      />
+    </svg>
+  </button>
+
+  {/* Voice Call Button */}
+  <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+    <svg
+      className="w-5 h-5 text-green-500"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+      />
+    </svg>
+  </button>
+
+  {/* Video Call Button */}
+  <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+    <svg
+      className="w-5 h-5 text-blue-500"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14m-9 4h8a2 2 0 002-2V8a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2z"
+      />
+    </svg>
+  </button>
+
+  {/* Three Dots Button - User Details */}
+  <button 
+    onClick={() => setShowUserDetails(true)}
+    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+  >
+    <svg
+      className="w-5 h-5 text-gray-500"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M12 5v.01M12 12v.01M12 19v.01"
+      />
+    </svg>
+  </button>
+</div>
               </>
             ) : (
               <div className="flex-1 text-center">
@@ -989,6 +1001,115 @@ export default function ChatPage() {
           background: #a8b0b8;
         }
       `}</style>
+
+
+
+{/* user details model  */}
+{/* User Details Modal */}
+{showUserDetails && selectedUser && (
+  <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-fade-in">
+    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-hidden">
+      
+      {/* Modal Header */}
+      <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-6 py-4 flex items-center justify-between">
+        <h3 className="text-white font-semibold text-lg">User Details</h3>
+        <button
+          onClick={() => setShowUserDetails(false)}
+          className="text-white hover:bg-white/20 p-1 rounded-full transition"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Modal Content */}
+      <div className="p-6">
+        {/* User Avatar Section */}
+        <div className="flex flex-col items-center mb-6">
+          <div className="relative">
+            <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-3xl shadow-lg">
+              {selectedUser.avatar || selectedUser.name.charAt(0)}
+            </div>
+            {selectedUser.online && (
+              <div className="absolute bottom-1 right-1 w-4 h-4 bg-green-500 border-3 border-white rounded-full"></div>
+            )}
+          </div>
+          <h2 className="text-xl font-bold text-gray-800 mt-3">{selectedUser.name}</h2>
+          <p className={`text-sm ${selectedUser.online ? 'text-green-500' : 'text-gray-400'}`}>
+            {selectedUser.online ? '🟢 Online' : '⚪ Offline'}
+          </p>
+        </div>
+
+        {/* User Info Grid */}
+        <div className="space-y-3 border-t border-gray-100 pt-4">
+          <div className="flex items-center justify-between py-2 border-b border-gray-50">
+            <span className="text-sm text-gray-500">Status</span>
+            <span className="text-sm font-medium text-gray-800">
+              {selectedUser.online ? 'Active Now' : 'Last seen recently'}
+            </span>
+          </div>
+          
+          <div className="flex items-center justify-between py-2 border-b border-gray-50">
+            <span className="text-sm text-gray-500">User ID</span>
+            <span className="text-sm font-medium text-gray-800">#{selectedUser.id}</span>
+          </div>
+          
+          <div className="flex items-center justify-between py-2 border-b border-gray-50">
+            <span className="text-sm text-gray-500">Email</span>
+            <span className="text-sm font-medium text-gray-800">
+              {selectedUser.email || `${selectedUser.name.toLowerCase().replace(' ', '.')}@email.com`}
+            </span>
+          </div>
+          
+          <div className="flex items-center justify-between py-2 border-b border-gray-50">
+            <span className="text-sm text-gray-500">Phone</span>
+            <span className="text-sm font-medium text-gray-800">
+              {selectedUser.phone || '+1 (555) 123-4567'}
+            </span>
+          </div>
+          
+          <div className="flex items-center justify-between py-2 border-b border-gray-50">
+            <span className="text-sm text-gray-500">Joined</span>
+            <span className="text-sm font-medium text-gray-800">January 2024</span>
+          </div>
+          
+          <div className="flex items-center justify-between py-2">
+            <span className="text-sm text-gray-500">Messages</span>
+            <span className="text-sm font-medium text-gray-800">{chatMessages.length}</span>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="grid grid-cols-2 gap-3 mt-6 pt-4 border-t border-gray-100">
+          <button className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl transition font-medium text-sm">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            Message
+          </button>
+          <button className="flex items-center justify-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-xl transition font-medium text-sm">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+            </svg>
+            Call
+          </button>
+        </div>
+
+        {/* Close Button */}
+        <button
+          onClick={() => setShowUserDetails(false)}
+          className="w-full mt-3 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition font-medium text-sm"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+
+
     </>
   );
 }

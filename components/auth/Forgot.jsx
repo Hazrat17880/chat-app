@@ -2,6 +2,8 @@
 
 import { useState, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 
 // --- Reusable Sub-components (Consistent with Login/Register) ---
 
@@ -65,7 +67,8 @@ const validateForgotForm = (data) => {
 
 // --- Main Component ---
 
-export default function ForgotPassword() {
+export default function ForgotPasswordPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -91,16 +94,42 @@ export default function ForgotPassword() {
     setIsSubmitting(true);
 
     try {
-      // Simulate API call to send reset email
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      
+      const response = await fetch("/api/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "Failed to send reset email");
+      }
+
       setIsSubmitted(true);
       setErrors({});
+      
+      toast.success("Password reset email sent! Check your inbox.", {
+        duration: 4000,
+        position: "top-center",
+      });
+
     } catch (error) {
-      setErrors({ submit: "Failed to send reset email. Please try again." });
+      console.error(error);
+      toast.error(error.message || "Failed to send reset email. Please try again.", {
+        duration: 4000,
+        position: "top-center",
+      });
+      setErrors({ submit: error.message || "Failed to send reset email. Please try again." });
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleRetry = () => {
+    setIsSubmitted(false);
+    setEmail("");
+    setErrors({});
   };
 
   // Icons
@@ -119,13 +148,13 @@ export default function ForgotPassword() {
           {isSubmitted ? (
             <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
               <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
               </svg>
             </div>
           ) : (
             <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
               <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
               </svg>
             </div>
           )}
@@ -148,10 +177,18 @@ export default function ForgotPassword() {
         {/* Success State View */}
         {isSubmitted ? (
           <div className="space-y-4">
-            <p className="text-sm text-gray-500 text-center mb-6">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <p className="text-sm text-green-700 text-center">
+                ✅ Password reset link sent successfully!
+              </p>
+              <p className="text-xs text-gray-500 text-center mt-1">
+                Please check your email inbox and follow the instructions.
+              </p>
+            </div>
+            <p className="text-sm text-gray-500 text-center">
               Didn't receive the email?{" "}
               <button 
-                onClick={() => setIsSubmitted(false)} 
+                onClick={handleRetry} 
                 className="text-blue-600 hover:text-blue-800 font-semibold hover:underline underline-offset-2 transition-colors"
               >
                 Click here to try again
@@ -204,7 +241,7 @@ export default function ForgotPassword() {
                   Sending Reset Link...
                 </>
               ) : (
-                "Reset Password"
+                "Send Reset Link"
               )}
             </button>
           </form>

@@ -1,8 +1,16 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import toast from 'react-hot-toast';
+import { clearUserEmail } from "../../redux/sclies/authSlice";
 
-export default function Verification({ email = "user@example.com", onVerify }) {
+export default function Verification({ onVerify }) {
+  const dispatch = useDispatch();
+  
+  // Get email from Redux store
+  const email = useSelector((state) => state.auth.email || "");
+  
   const [otp, setOtp] = useState(Array(6).fill(""));
   const [activeIndex, setActiveIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState(30);
@@ -79,13 +87,46 @@ export default function Verification({ email = "user@example.com", onVerify }) {
   const handleResend = async () => {
     if (timeLeft > 0) return;
     
-    // Simulate API call to resend OTP
-    setTimeLeft(30);
-    setOtp(Array(6).fill(""));
-    setError("");
-    inputRefs.current[0]?.focus();
-    
-    // In a real app: await fetch('/api/auth/resend-otp', ...)
+    try {
+      // Call the resend OTP API
+      const response = await fetch('/api/send-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Show success toast message
+        toast.success('OTP resent successfully! Please check your email.', {
+          duration: 4000,
+          position: 'top-center',
+          icon: '📧',
+        });
+        
+        setTimeLeft(30);
+        setOtp(Array(6).fill(""));
+        setError("");
+        inputRefs.current[0]?.focus();
+      } else {
+        // Show error toast message
+        toast.error(data.message || "Failed to resend OTP. Please try again.", {
+          duration: 4000,
+          position: 'top-center',
+        });
+        setError(data.message || "Failed to resend OTP. Please try again.");
+      }
+    } catch (err) {
+      // Show error toast message
+      toast.error("Failed to resend OTP. Please try again.", {
+        duration: 4000,
+        position: 'top-center',
+      });
+      setError("Failed to resend OTP. Please try again.");
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -101,13 +142,50 @@ export default function Verification({ email = "user@example.com", onVerify }) {
     setError("");
 
     try {
-      // Simulate API call to verify OTP
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      
-      setIsVerified(true);
-      onVerify?.(code);
+      // Call the verify OTP API
+      const response = await fetch('/api/verify-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          email: email,
+          otp: code 
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // ✅ Clear email from Redux store after successful verification
+        dispatch(clearUserEmail());
+        
+        // Show success toast message
+        toast.success('Email verified successfully!', {
+          duration: 4000,
+          position: 'top-center',
+          icon: '✅',
+        });
+        
+        setIsVerified(true);
+        onVerify?.(code);
+      } else {
+        // Show error toast message
+        toast.error(data.message || "Invalid verification code. Please try again.", {
+          duration: 4000,
+          position: 'top-center',
+        });
+        setError(data.message || "Invalid verification code. Please try again.");
+        setOtp(Array(6).fill(""));
+        inputRefs.current[0]?.focus();
+      }
     } catch (err) {
-      setError("Invalid verification code. Please try again.");
+      // Show error toast message
+      toast.error("Something went wrong. Please try again.", {
+        duration: 4000,
+        position: 'top-center',
+      });
+      setError("Something went wrong. Please try again.");
       setOtp(Array(6).fill(""));
       inputRefs.current[0]?.focus();
     } finally {
@@ -158,7 +236,7 @@ export default function Verification({ email = "user@example.com", onVerify }) {
         {/* Success State View */}
         {isVerified ? (
           <button
-            onClick={() => window.location.href = "/login"} // Or use router.push from props
+            onClick={() => window.location.href = "/login"}
             className="block w-full py-3 px-4 rounded-xl text-white font-semibold text-center bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-md hover:shadow-lg transition-all duration-200"
           >
             Continue to Dashboard

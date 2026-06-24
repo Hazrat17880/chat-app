@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useCallback, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import toast from "react-hot-toast";
 
 // --- Constants & Configurations ---
 
@@ -103,8 +104,12 @@ const validateResetForm = (data) => {
 
 // --- Main Component ---
 
-export default function ResetPassword({ token }) {
+export default function ResetPasswordPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  // ✅ Get token from URL
+  const token = searchParams.get('token');
   
   const [formData, setFormData] = useState({
     password: "",
@@ -115,6 +120,20 @@ export default function ResetPassword({ token }) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isValidToken, setIsValidToken] = useState(true);
+
+  // ✅ Check if token exists
+  useEffect(() => {
+    if (!token) {
+      setIsValidToken(false);
+      toast.error("Invalid or missing reset token", {
+        duration: 4000,
+        position: "top-center",
+      });
+    } else {
+      console.log("✅ Reset token found:", token);
+    }
+  }, [token]);
 
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
@@ -125,6 +144,15 @@ export default function ResetPassword({ token }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // ✅ Check if token exists before submitting
+    if (!token) {
+      toast.error("Invalid reset token. Please request a new password reset.", {
+        duration: 4000,
+        position: "top-center",
+      });
+      return;
+    }
+
     const validationErrors = validateResetForm(formData);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
@@ -134,14 +162,38 @@ export default function ResetPassword({ token }) {
     setIsSubmitting(true);
 
     try {
-      // Simulate API call to backend with the token
-      // In a real app: await fetch(`/api/auth/reset-password?token=${token}`, { method: 'POST', body: JSON.stringify({ password: formData.password }) })
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      
+      // ✅ Call the reset password API with token
+      const response = await fetch("/api/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: token,
+          password: formData.password,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "Failed to reset password");
+      }
+
       setIsSuccess(true);
       setErrors({});
+      
+      toast.success("Password reset successfully!", {
+        duration: 4000,
+        position: "top-center",
+        icon: "✅",
+      });
+
     } catch (error) {
-      setErrors({ submit: "Failed to reset password. The link may have expired." });
+      console.error(error);
+      toast.error(error.message || "Failed to reset password. Please try again.", {
+        duration: 4000,
+        position: "top-center",
+      });
+      setErrors({ submit: error.message || "Failed to reset password. The link may have expired." });
     } finally {
       setIsSubmitting(false);
     }
@@ -166,6 +218,33 @@ export default function ResetPassword({ token }) {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
     </svg>
   );
+
+  // ✅ Show error if token is invalid
+  if (!isValidToken) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50 py-12 px-4">
+        <div className="bg-white p-8 sm:p-10 rounded-2xl shadow-xl w-full max-w-md border border-gray-100/80">
+          <div className="text-center">
+            <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+              <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900">Invalid Reset Link</h2>
+            <p className="text-gray-500 mt-2 text-sm">
+              This password reset link is invalid or has expired.
+            </p>
+            <button
+              onClick={() => router.push("/forgot-password")}
+              className="mt-6 w-full py-3 px-4 rounded-xl text-white font-semibold bg-blue-600 hover:bg-blue-700 transition-all duration-200"
+            >
+              Request New Reset Link
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50 py-12 px-4 sm:px-6 lg:px-8">

@@ -14,6 +14,15 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       index: true,
     },
+    // Add to userSchema
+avatarUrl: {
+  type: String,
+  default: null,
+},
+avatarIsCustom: {
+  type: Boolean,
+  default: false,
+},
     
     email: {
       type: String,

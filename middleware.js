@@ -6,6 +6,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-pro
 // Public routes that don't require authentication
 const publicRoutes = [
   '/',
+  '/profile',
   '/login',
   '/signup',
   '/otp-verification',

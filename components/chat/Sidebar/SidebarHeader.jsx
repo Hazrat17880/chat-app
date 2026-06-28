@@ -1,30 +1,37 @@
+// components/chat/Sidebar/SidebarHeader.jsx
 import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useRouter } from "next/navigation";
 
-export default function SidebarHeader({ onMenuToggle, user, users = [] }) {
+export default function SidebarHeader({ 
+  onMenuToggle, 
+  user, 
+  users = [], 
+  onContactAdded,
+  onUserSelect 
+}) {
   const router = useRouter();
   const auth = useSelector((state) => state.auth);
-
-  console.log(auth.user.id);
+  
 
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
   // current login user id
-  const userId = auth.user.id;
+  const userId = auth?.user?.id || auth?.user?._id;
 
-  /// get the login user data and show in the profile
+  // get the login user data and show in the profile
   const [loginUserData, setLoginUserData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-const handleProfileClick = () => {
-  if (loginUserData?._id) {
-    router.push(`/profile?userId=${loginUserData._id}`);
-  }
-};
+  const handleProfileClick = () => {
+    if (loginUserData?._id) {
+      router.push(`/profile?userId=${loginUserData._id}`);
+    }
+  };
+
   // Helper function to get avatar display
   const getAvatarDisplay = () => {
     if (!loginUserData) {
@@ -35,8 +42,6 @@ const handleProfileClick = () => {
     const avatar = loginUserData.avatar;
     const firstChar = username.charAt(0).toUpperCase();
     
-    // Check if avatar exists and is not just the first letter
-    // If avatar is a URL (starts with http) or is longer than 1 character
     if (avatar && avatar.length > 1 && avatar !== firstChar) {
       return { type: 'image', value: avatar, name: username };
     }
@@ -67,10 +72,9 @@ const handleProfileClick = () => {
         });
 
         const result = await response.json();
-        console.log("login user data ", result);
 
         if (result.success) {
-          setLoginUserData(result.data); // ✅ Store the complete user object
+          setLoginUserData(result.data);
         } else {
           setError(result.message);
         }
@@ -87,7 +91,7 @@ const handleProfileClick = () => {
     }
   }, [userId]);
 
-  // new starte for the create new user
+  // State for creating new contact
   const [showContactModal, setShowContactModal] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [contactName, setContactName] = useState("");
@@ -105,70 +109,15 @@ const handleProfileClick = () => {
     }
   }, [showSuccessMessage]);
 
-  const defaultUser = {
-    name: user?.name || "John Doe",
-    email: user?.email || "john.doe@example.com",
-    avatar:
-      user?.avatar ||
-      "https://ui-avatars.com/api/?name=John+Doe&background=6366f1&color=fff",
-    role: user?.role || "Member",
-    joinedDate: user?.joinedDate || "January 2024",
-    status: user?.status || "online",
-  };
-
-  const defaultUsers =
-    users.length > 0
-      ? users
-      : [
-          {
-            id: 1,
-            name: "Alice Johnson",
-            email: "alice@example.com",
-            avatar:
-              "https://ui-avatars.com/api/?name=Alice+Johnson&background=8b5cf6&color=fff",
-            status: "online",
-          },
-          {
-            id: 2,
-            name: "Bob Smith",
-            email: "bob@example.com",
-            avatar:
-              "https://ui-avatars.com/api/?name=Bob+Smith&background=ec4899&color=fff",
-            status: "offline",
-          },
-          {
-            id: 3,
-            name: "Charlie Brown",
-            email: "charlie@example.com",
-            avatar:
-              "https://ui-avatars.com/api/?name=Charlie+Brown&background=14b8a6&color=fff",
-            status: "online",
-          },
-          {
-            id: 4,
-            name: "Diana Prince",
-            email: "diana@example.com",
-            avatar:
-              "https://ui-avatars.com/api/?name=Diana+Prince&background=f59e0b&color=fff",
-            status: "away",
-          },
-          {
-            id: 5,
-            name: "Eve Wilson",
-            email: "eve@example.com",
-            avatar:
-              "https://ui-avatars.com/api/?name=Eve+Wilson&background=3b82f6&color=fff",
-            status: "online",
-          },
-        ];
-
-  const filteredUsers = defaultUsers.filter(
+  // Use the users prop from Sidebar for the modal list
+  const filteredUsers = users.filter(
     (user) =>
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()),
+      user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // when a user want to create or add to list the new user
+  // when a user wants to create or add to list the new user
   const handleAddContact = async () => {
     // 1️⃣ Validate inputs
     if (!phoneNumber || !contactName) {
@@ -181,15 +130,11 @@ const handleProfileClick = () => {
     setError("");
 
     try {
-     
-
       // 4️⃣ Make API call
       const response = await fetch("/api/new-contact", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          // Add authorization token if you have auth
-          // "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify({
           userId: userId,
@@ -212,21 +157,22 @@ const handleProfileClick = () => {
         setShowContactModal(false);
 
         setShowSuccessMessage(
-          `${result.data.contact.customName} added successfully 🎉`,
+          `${result.data.contact.customName} added successfully 🎉`
         );
 
-        // Optional: Show toast notification
-        // toast.success("Contact added successfully!");
+        // 🔥 Call this to refresh the contacts list in Sidebar
+        if (onContactAdded) {
+          onContactAdded();
+        }
       } else {
         // ❌ Error from backend
         setError(result.message || "Failed to add contact");
 
-        // If user not registered, show specific message
-        if (result.message.includes("not registered")) {
+        if (result.message?.includes("not registered")) {
           setError("This phone number is not registered in the app");
-        } else if (result.message.includes("already exists")) {
+        } else if (result.message?.includes("already exists")) {
           setError("This contact is already in your list");
-        } else if (result.message.includes("yourself")) {
+        } else if (result.message?.includes("yourself")) {
           setError("You cannot add yourself as a contact");
         }
       }
@@ -238,12 +184,17 @@ const handleProfileClick = () => {
     }
   };
 
-  console.log("your login user :", loginUserData);
-  
+  // Handle user selection from modal
+  const handleUserClick = (user) => {
+    setShowCreateModal(false);
+    if (onUserSelect) {
+      onUserSelect(user);
+    }
+  };
+
   // Get avatar display data
   const avatarDisplay = getAvatarDisplay();
   const isOnline = getUserStatus() === 'online';
-  const username = loginUserData?.username || 'User';
 
   return (
     <>
@@ -254,16 +205,13 @@ const handleProfileClick = () => {
             className="relative focus:outline-none group"
           >
             {loading ? (
-              // Loading state
               <div className="w-10 h-10 rounded-full bg-gray-200 animate-pulse"></div>
             ) : avatarDisplay.type === 'image' ? (
-              // Show avatar image
               <img
                 src={avatarDisplay.value}
                 alt={avatarDisplay.name}
                 className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 group-hover:border-indigo-500 transition-colors"
                 onError={(e) => {
-                  // If image fails to load, show initials
                   e.target.style.display = 'none';
                   const parent = e.target.parentElement;
                   const div = document.createElement('div');
@@ -273,13 +221,11 @@ const handleProfileClick = () => {
                 }}
               />
             ) : (
-              // Show initials
               <div className="w-10 h-10 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white flex items-center justify-center text-lg font-semibold border-2 border-gray-200 group-hover:border-indigo-500 transition-colors">
                 {avatarDisplay.value}
               </div>
             )}
             
-            {/* Online Status Indicator */}
             {isOnline && (
               <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
             )}
@@ -452,7 +398,7 @@ const handleProfileClick = () => {
                 </svg>
                 <input
                   type="text"
-                  placeholder="Search users..."
+                  placeholder="Search contacts..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -464,30 +410,41 @@ const handleProfileClick = () => {
               {filteredUsers.length > 0 ? (
                 filteredUsers.map((user) => (
                   <button
-                    key={user.id}
-                    onClick={() => {
-                      console.log(`Selected user: ${user.name}`);
-                      setShowCreateModal(false);
-                    }}
+                    key={user.id || user.userId || user._id}
+                    onClick={() => handleUserClick(user)}
                     className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors"
                   >
                     <div className="relative">
-                      <img
-                        src={user.avatar}
-                        alt={user.name}
-                        className="w-10 h-10 rounded-full object-cover"
-                      />
-                      {user.status === "online" && (
+                      {user.avatarUrl || user.avatar ? (
+                        <img
+                          src={user.avatarUrl || user.avatar}
+                          alt={user.name || user.username}
+                          className="w-10 h-10 rounded-full object-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            const parent = e.target.parentElement;
+                            const div = document.createElement('div');
+                            div.className = 'w-10 h-10 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold';
+                            div.textContent = (user.name || user.username || 'U').charAt(0).toUpperCase();
+                            parent.appendChild(div);
+                          }}
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold">
+                          {(user.name || user.username || 'U').charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      {user.online && (
                         <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full"></span>
                       )}
                     </div>
                     <div className="flex-1 text-left">
                       <p className="text-sm font-medium text-gray-800">
-                        {user.name}
+                        {user.name || user.username}
                       </p>
-                      <p className="text-xs text-gray-500">{user.email}</p>
+                      <p className="text-xs text-gray-500">{user.email || user.phone}</p>
                     </div>
-                    {user.status === "online" && (
+                    {user.online && (
                       <span className="text-xs text-green-500 font-medium">
                         Online
                       </span>
@@ -496,7 +453,11 @@ const handleProfileClick = () => {
                 ))
               ) : (
                 <div className="text-center py-8">
-                  <p className="text-gray-500">No users found</p>
+                  <svg className="w-12 h-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                  <p className="text-gray-500">No contacts found</p>
+                  <p className="text-xs text-gray-400 mt-1">Add a contact to start chatting</p>
                 </div>
               )}
             </div>
@@ -546,7 +507,6 @@ const handleProfileClick = () => {
 
             <div className="px-6 py-6">
               <div className="space-y-4">
-                {/* Error Message */}
                 {error && (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
                     <svg
@@ -566,7 +526,6 @@ const handleProfileClick = () => {
                   </div>
                 )}
 
-                {/* Contact Name Input */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Contact Name
@@ -595,7 +554,6 @@ const handleProfileClick = () => {
                   </div>
                 </div>
 
-                {/* Phone Number Input */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Phone Number
@@ -734,8 +692,6 @@ const handleProfileClick = () => {
           </div>
         </div>
       )}
-
-      {/* -------------------- end of the new contact -------------  */}
     </>
   );
 }

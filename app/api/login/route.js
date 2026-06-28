@@ -10,6 +10,10 @@ export async function POST(req) {
 
     const { email, password } = await req.json();
 
+console.log("========== LOGIN REQUEST ==========");
+console.log("Email:", email);
+console.log("Password:", password);
+
     // Validate input
     if (!email || !password) {
       return NextResponse.json(

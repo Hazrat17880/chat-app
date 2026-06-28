@@ -1,7 +1,16 @@
 // components/chat/MessageBuble.jsx
-export default function MessageBubble({ message }) {
-  const isMe = message.sender === "me" || message.senderId === message.senderId?._id;
+export default function MessageBubble({ message, currentUserId }) {
+  // Fix: Properly check if the message is from the current user
+  const senderId = message.senderId?._id || message.senderId || message.sender;
+  const isMe = senderId === currentUserId || message.sender === "me";
   
+  console.log('🔍 Message debug:', {
+    senderId: senderId,
+    currentUserId: currentUserId,
+    isMe: isMe,
+    content: message.content?.substring(0, 20)
+  });
+
   // Helper function to safely parse dates from MongoDB
   const formatMessageTime = (dateValue) => {
     if (!dateValue) return '';
@@ -13,17 +22,13 @@ export default function MessageBubble({ message }) {
     } else if (dateValue instanceof Date) {
       date = dateValue;
     } else if (dateValue && typeof dateValue === 'object' && dateValue.$date) {
-      // Handle MongoDB date format: { $date: "2026-06-28T09:26:08.711Z" }
       date = new Date(dateValue.$date);
     } else if (dateValue && typeof dateValue === 'object' && dateValue._date) {
-      // Handle alternative MongoDB format
       date = new Date(dateValue._date);
     } else {
-      // Try to convert directly
       date = new Date(dateValue);
     }
     
-    // Check if date is valid
     if (isNaN(date.getTime())) {
       console.warn('Invalid date:', dateValue);
       return '';
@@ -42,7 +47,7 @@ export default function MessageBubble({ message }) {
     switch(status) {
       case 'sending':
         return (
-          <svg className="w-4 h-4 text-blue-200 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <svg className="w-4 h-4 text-blue-200  animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <circle cx="12" cy="12" r="10" strokeWidth="2" />
             <path d="M12 6v6l4 2" strokeWidth="2" />
           </svg>
@@ -98,7 +103,7 @@ export default function MessageBubble({ message }) {
       className={`flex ${isMe ? "justify-end" : "justify-start"} animate-fade-in`}
     >
       <div
-        className={`relative max-w-[75%] md:max-w-[60%] px-3.5 py-2 shadow-sm ${
+        className={`relative max-w-[75%] md:max-w-[60%] px-3.5 py-2 my-1 shadow-sm ${
           isMe
             ? message.status === 'failed' 
               ? "bg-red-500 text-white rounded-2xl rounded-br-sm" 
@@ -109,7 +114,7 @@ export default function MessageBubble({ message }) {
         <p className="text-sm leading-relaxed break-words">{message.content}</p>
 
         <div
-          className={`flex items-center gap-1.5 mt-1 ${
+          className={`flex items-center gap-1.5 mt-1 my-2 ${
             isMe ? "justify-end" : "justify-start"
           }`}
         >

@@ -270,6 +270,7 @@ const handleSendMessage = async (content) => {
             <Messages 
               messages={messages} 
               isTyping={receiverTyping} 
+              currentUserId={userId}
             />
 
             {/* Input */}

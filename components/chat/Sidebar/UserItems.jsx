@@ -7,9 +7,19 @@ export default function UserItem({ user, isSelected, onSelect }) {
       }`}
     >
       <div className="relative flex-shrink-0">
-        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold shadow-sm">
-          {user.avatar || user.name.charAt(0)}
-        </div>
+        <div className="w-12 h-12 rounded-full shadow-sm flex-shrink-0">
+  {user.avatar ? (
+    <img 
+      src={user.avatar} 
+      alt={user.name}
+      className="w-full h-full rounded-full object-cover"
+    />
+  ) : (
+    <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
+      {user.name?.charAt(0).toUpperCase()}
+    </div>
+  )}
+</div>
         {user.online && (
           <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-[2.5px] border-white rounded-full"></div>
         )}

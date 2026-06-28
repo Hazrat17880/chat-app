@@ -239,7 +239,8 @@ const handleSendMessage = async (content) => {
     };
   };
 
-  const userForHeader = getUserForHeader();
+  // const userForHeader = getUserForHeader();
+  const userForHeader = selectedUser;
 
   return (
     <div className="flex h-screen bg-gray-100">

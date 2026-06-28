@@ -4,12 +4,12 @@ export default function MessageBubble({ message, currentUserId }) {
   const senderId = message.senderId?._id || message.senderId || message.sender;
   const isMe = senderId === currentUserId || message.sender === "me";
   
-  console.log('🔍 Message debug:', {
-    senderId: senderId,
-    currentUserId: currentUserId,
-    isMe: isMe,
-    content: message.content?.substring(0, 20)
-  });
+  // console.log('🔍 Message debug:', {
+  //   senderId: senderId,
+  //   currentUserId: currentUserId,
+  //   isMe: isMe,
+  //   content: message.content?.substring(0, 20)
+  // });
 
   // Helper function to safely parse dates from MongoDB
   const formatMessageTime = (dateValue) => {

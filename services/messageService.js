@@ -96,6 +96,6 @@ class MessageService {
       throw error.response?.data || error.message;
     }
   }
-}
+} 
 
 export default MessageService;

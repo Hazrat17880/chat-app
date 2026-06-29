@@ -6,11 +6,7 @@ import cloudinary from "../../../../lib/cloudinary";
 import { runMiddleware } from "../../../../lib/middleware";
 
 // Helper to run multer middleware
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
+
 
 // This function handles file upload middleware
 async function runMulterMiddleware(req) {

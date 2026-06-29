@@ -1,109 +1,197 @@
 "use client";
-
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+
+const THREAD = [
+  { from: "them", text: "you still up for saturday?" },
+  { from: "me", text: "wouldn't miss it" },
+  { from: "them", text: "bringing the whole crew then" },
+  { from: "me", text: "even better 🔥" },
+];
 
 export default function Home() {
   const router = useRouter();
-  const [typedText, setTypedText] = useState("");
-  const [showCursor, setShowCursor] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(0);
+  const [isTyping, setIsTyping] = useState(false);
+  const loopRef = useRef(null);
 
-  const fullText = "Connect with friends in real-time";
-
-  // Typing effect
   useEffect(() => {
-    let index = 0;
-    const typingInterval = setInterval(() => {
-      if (index <= fullText.length) {
-        setTypedText(fullText.slice(0, index));
-        index++;
-      } else {
-        clearInterval(typingInterval);
+    let i = 0;
+    let cancelled = false;
+
+    function step() {
+      if (cancelled) return;
+      if (i >= THREAD.length) {
+        loopRef.current = setTimeout(() => {
+          if (cancelled) return;
+          setVisibleCount(0);
+          i = 0;
+          step();
+        }, 1800);
+        return;
       }
-    }, 60); // Slightly slower for better readability
+      setIsTyping(true);
+      loopRef.current = setTimeout(() => {
+        if (cancelled) return;
+        setIsTyping(false);
+        i += 1;
+        setVisibleCount(i);
+        loopRef.current = setTimeout(step, 900);
+      }, 850);
+    }
 
-    return () => clearInterval(typingInterval);
-  }, []);
-
-  // Cursor blink effect (runs independently)
-  useEffect(() => {
-    const cursorInterval = setInterval(() => {
-      setShowCursor((prev) => !prev);
-    }, 500);
-
-    return () => clearInterval(cursorInterval);
+    step();
+    return () => {
+      cancelled = true;
+      clearTimeout(loopRef.current);
+    };
   }, []);
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center bg-slate-50 overflow-hidden">
-      
-      {/* Ambient background blobs for a modern, soft look */}
-      <div className="absolute top-0 -left-20 w-96 h-96 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-pulse"></div>
-      <div className="absolute bottom-0 -right-20 w-96 h-96 bg-indigo-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-pulse"></div>
+    <div className="min-h-screen bg-[#FAF8F4] text-[#16140F] flex flex-col">
+      <style jsx global>{`
+        @import url("https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Space+Mono:wght@400;500&family=Inter:wght@400;500&display=swap");
+        .font-display { font-family: "Archivo", sans-serif; }
+        .font-mono { font-family: "Space Mono", monospace; }
+        .font-body { font-family: "Inter", sans-serif; }
+        @keyframes blink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
+        @keyframes riseIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes dot { 0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }
+      `}</style>
 
-      {/* Main Content Container */}
-      <div className="relative text-center px-6 max-w-2xl z-10">
-        
-        {/* Logo / Icon */}
-        <div className="flex justify-center mb-8">
-          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-xl shadow-blue-200 transform rotate-3 transition-transform duration-300 hover:rotate-0">
-            <svg 
-              className="w-10 h-10 text-white" 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
+      {/* Top bar */}
+      <header className="w-full px-6 sm:px-10 py-6 flex items-center justify-between font-body">
+        <div className="flex items-center gap-2.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-[#FF5A36]" />
+          <span className="font-display font-semibold text-lg tracking-tight">Chatly</span>
+        </div>
+        <button
+          onClick={() => router.push("/login")}
+          className="text-sm font-medium text-[#16140F]/70 hover:text-[#16140F] transition-colors"
+        >
+          Sign in
+        </button>
+      </header>
+
+      {/* Main split */}
+      <main className="flex-1 flex items-center">
+        <div className="w-full max-w-6xl mx-auto px-6 sm:px-10 py-12 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          {/* Left: copy */}
+          <div className="max-w-md">
+            <p className="font-mono text-xs tracking-widest uppercase text-[#8A9A7E] mb-5">
+              now connecting · real-time
+            </p>
+            <h1 className="font-display text-[3.4rem] leading-[1.02] font-semibold tracking-tight mb-6">
+              Say it the
+              <br />
+              second you
+              <br />
+              think it.
+            </h1>
+            <p className="font-body text-[#16140F]/60 text-lg leading-relaxed mb-10 max-w-sm">
+              No refresh, no delay. Messages land the instant you send them,
+              and you'll always know who's reading.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-3 max-w-sm">
+              <button
+                onClick={() => router.push("/signup")}
+                className="bg-[#16140F] text-[#FAF8F4] px-7 py-3.5 rounded-lg font-body font-medium text-[15px] hover:bg-[#2A2620] transition-colors"
+              >
+                Create an account
+              </button>
+              <button
+                onClick={() => router.push("/login")}
+                className="px-7 py-3.5 rounded-lg font-body font-medium text-[15px] border border-[#16140F]/15 hover:border-[#16140F]/30 transition-colors"
+              >
+                Sign in
+              </button>
+            </div>
+
+            <p className="font-mono text-[11px] text-[#16140F]/35 mt-8 tracking-wide">
+              by continuing you agree to our terms and privacy policy
+            </p>
+          </div>
+
+          {/* Right: live thread mockup — the signature element */}
+          <div className="relative flex justify-center lg:justify-end">
+            <div className="w-[300px] rounded-[28px] bg-[#16140F] p-2 shadow-2xl">
+              <div className="rounded-[22px] bg-[#FAF8F4] overflow-hidden">
+                {/* thread header */}
+                <div className="flex items-center gap-3 px-4 py-3.5 border-b border-[#16140F]/8">
+                  <div className="w-8 h-8 rounded-full bg-[#E8E3D8] flex items-center justify-center font-display text-xs font-semibold text-[#16140F]/60">
+                    JM
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-body text-sm font-medium leading-tight">Jess M.</p>
+                    <p className="font-mono text-[10px] text-[#8A9A7E] tracking-wide flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#8A9A7E] inline-block" />
+                      active now
+                    </p>
+                  </div>
+                </div>
+
+                {/* messages */}
+                <div className="px-4 py-5 flex flex-col gap-2.5 min-h-[260px] justify-end">
+                  {THREAD.slice(0, visibleCount).map((m, idx) => (
+                    <div
+                      key={idx}
+                      style={{ animation: "riseIn 0.3s ease-out" }}
+                      className={`max-w-[78%] px-3.5 py-2 rounded-2xl font-body text-[13.5px] leading-snug ${
+                        m.from === "me"
+                          ? "self-end bg-[#FF5A36] text-white rounded-br-md"
+                          : "self-start bg-[#E8E3D8] text-[#16140F] rounded-bl-md"
+                      }`}
+                    >
+                      {m.text}
+                    </div>
+                  ))}
+
+                  {isTyping && (
+                    <div
+                      className={`flex gap-1 px-3.5 py-3 rounded-2xl w-fit ${
+                        visibleCount % 2 === 0
+                          ? "self-start bg-[#E8E3D8] rounded-bl-md"
+                          : "self-end bg-[#FF5A36] rounded-br-md"
+                      }`}
+                    >
+                      {[0, 1, 2].map((d) => (
+                        <span
+                          key={d}
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            visibleCount % 2 === 0 ? "bg-[#16140F]/40" : "bg-white/70"
+                          }`}
+                          style={{ animation: `dot 1.1s ${d * 0.15}s infinite ease-in-out` }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* input row, decorative */}
+                <div className="px-4 py-3 border-t border-[#16140F]/8 flex items-center gap-2">
+                  <div className="flex-1 h-8 rounded-full bg-[#E8E3D8]/60" />
+                  <div className="w-8 h-8 rounded-full bg-[#16140F] flex items-center justify-center shrink-0">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FAF8F4" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* floating status chip — the "delivered" beat */}
+            <div className="hidden sm:flex absolute -left-6 top-10 bg-white border border-[#16140F]/10 rounded-xl px-3 py-2 shadow-md items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#FF5A36]" />
+              <span className="font-mono text-[10px] tracking-wide text-[#16140F]/60">delivered · 0.2s</span>
+            </div>
           </div>
         </div>
+      </main>
 
-        {/* Title with Gradient Text */}
-        <h1 className="text-6xl font-extrabold tracking-tight mb-6">
-          <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            Chatly
-          </span>
-        </h1>
-
-        {/* Animated Subtitle */}
-        <div className="text-slate-500 text-xl mb-10 h-8 font-medium flex items-center justify-center">
-          <span>{typedText}</span>
-          <span 
-            className={`inline-block w-[3px] h-5 bg-blue-500 ml-1 rounded-full transition-opacity duration-100 ${showCursor ? 'opacity-100' : 'opacity-0'}`}
-          ></span>
-        </div>
-
-        {/* Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center max-w-md mx-auto">
-          <button
-            onClick={() => router.push("/signup")}
-            className="group w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-8 py-3.5 rounded-xl text-base font-semibold shadow-lg shadow-blue-200 hover:shadow-blue-300 transition-all duration-300 transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
-          >
-            Get Started
-            {/* Animated Arrow */}
-            <svg 
-              className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-            </svg>
-          </button>
-          
-          <button
-            onClick={() => router.push("/login")}
-            className="w-full sm:w-auto bg-white text-slate-700 px-8 py-3.5 rounded-xl text-base font-semibold shadow-sm border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all duration-300 transform hover:-translate-y-0.5"
-          >
-            Sign In
-          </button>
-        </div>
-
-        {/* Optional: Sub-footer text */}
-        <p className="mt-12 text-sm text-slate-400">
-          By continuing, you agree to our Terms of Service and Privacy Policy.
-        </p>
-      </div>
+      <footer className="px-6 sm:px-10 py-6 font-mono text-[10px] tracking-wide text-[#16140F]/30 text-center sm:text-left">
+        chatly — built for the moment, not the inbox
+      </footer>
     </div>
   );
 }

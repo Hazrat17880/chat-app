@@ -21,9 +21,9 @@ const messageSchema = new mongoose.Schema(
     // Message content
     content: {
       type: String,
-      required: [true, "Message content is required"],
       trim: true,
       maxlength: [5000, "Message cannot exceed 5000 characters"],
+      // Not required for audio messages
     },
 
     // Message type
@@ -41,22 +41,37 @@ const messageSchema = new mongoose.Schema(
       index: true,
     },
 
+    // ===== AUDIO MESSAGE FIELDS =====
+    audioUrl: {
+      type: String,
+      default: null,
+    },
+    audioDuration: {
+      type: Number,
+      default: null,
+    },
+    audioSize: {
+      type: Number,
+      default: null,
+    },
+    audioMimeType: {
+      type: String,
+      default: 'audio/webm',
+    },
+
     // For file messages
     fileUrl: {
       type: String,
       default: null,
     },
-
     fileName: {
       type: String,
       default: null,
     },
-
     fileSize: {
       type: Number,
       default: null,
     },
-
     fileMimeType: {
       type: String,
       default: null,
@@ -180,7 +195,7 @@ const messageSchema = new mongoose.Schema(
     },
   },
   {
-    timestamps: true, // Adds createdAt and updatedAt
+    timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
   }
@@ -217,6 +232,10 @@ messageSchema.index({ "reactions.userId": 1 });
 // For message type filtering
 messageSchema.index({ type: 1 });
 
+// ===== AUDIO MESSAGE INDEXES =====
+messageSchema.index({ audioUrl: 1 });
+messageSchema.index({ audioDuration: 1 });
+
 // ============================================
 // Virtual Fields
 // ============================================
@@ -236,6 +255,18 @@ messageSchema.virtual("unreadCount").get(function() {
   };
 });
 
+// ===== AUDIO MESSAGE VIRTUAL =====
+messageSchema.virtual("isAudio").get(function() {
+  return this.type === "audio";
+});
+
+messageSchema.virtual("audioDisplayDuration").get(function() {
+  if (!this.audioDuration) return "0:00";
+  const mins = Math.floor(this.audioDuration / 60);
+  const secs = Math.floor(this.audioDuration % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+});
+
 // ============================================
 // Instance Methods
 // ============================================
@@ -252,10 +283,7 @@ messageSchema.methods.markAsRead = async function(userId) {
       readAt: new Date(),
     });
     
-    // Update status if all recipients have read it
     if (this.status === "delivered") {
-      // Check if all participants have read the message
-      // This is simplified - you might want to check all recipients
       this.status = "read";
     }
     
@@ -289,12 +317,10 @@ messageSchema.methods.markAsDelivered = async function(userId) {
 
 // Add reaction to message
 messageSchema.methods.addReaction = async function(userId, reaction) {
-  // Remove existing reaction from this user
   this.reactions = this.reactions.filter(
     (r) => r.userId.toString() !== userId.toString()
   );
   
-  // Add new reaction
   this.reactions.push({
     userId,
     reaction,
@@ -316,7 +342,6 @@ messageSchema.methods.removeReaction = async function(userId) {
 
 // Edit message
 messageSchema.methods.editMessage = async function(newContent) {
-  // Save current content to edit history
   this.editHistory.push({
     content: this.content,
     editedAt: new Date(),
@@ -400,13 +425,17 @@ messageSchema.statics.getLatestMessage = async function(userId, otherUserId) {
 
 // Get message statistics
 messageSchema.statics.getStats = async function(userId) {
-  const [total, sent, delivered, read] = await Promise.all([
+  const [total, sent, delivered, read, audio] = await Promise.all([
     this.countDocuments({
       $or: [{ senderId: userId }, { receiverId: userId }],
     }),
     this.countDocuments({ senderId: userId, status: "sent" }),
     this.countDocuments({ senderId: userId, status: "delivered" }),
     this.countDocuments({ senderId: userId, status: "read" }),
+    this.countDocuments({ 
+      senderId: userId, 
+      type: "audio" 
+    }),
   ]);
   
   return {
@@ -414,6 +443,7 @@ messageSchema.statics.getStats = async function(userId) {
     sent,
     delivered,
     read,
+    audio,
     unread: total - (sent + delivered + read),
   };
 };
@@ -439,15 +469,85 @@ messageSchema.statics.searchMessages = async function(userId, searchTerm) {
     .populate("receiverId", "username email avatar");
 };
 
+// ===== AUDIO MESSAGE STATIC METHODS =====
+// Get audio messages for a user
+messageSchema.statics.getAudioMessages = async function(userId, otherUserId, limit = 20) {
+  return await this.find({
+    $or: [
+      { senderId: userId, receiverId: otherUserId },
+      { senderId: otherUserId, receiverId: userId },
+    ],
+    type: "audio",
+    isDeletedForEveryone: false,
+    deletedBy: { $ne: userId },
+  })
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .populate("senderId", "username email avatar online")
+    .populate("receiverId", "username email avatar online");
+};
+
+// Get audio messages count
+messageSchema.statics.getAudioCount = async function(userId) {
+  return await this.countDocuments({
+    $or: [{ senderId: userId }, { receiverId: userId }],
+    type: "audio",
+    isDeletedForEveryone: false,
+  });
+};
+
+// Get total audio duration for a user
+messageSchema.statics.getTotalAudioDuration = async function(userId) {
+  const result = await this.aggregate([
+    {
+      $match: {
+        $or: [{ senderId: userId }, { receiverId: userId }],
+        type: "audio",
+        isDeletedForEveryone: false,
+        deletedBy: { $ne: userId },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        totalDuration: { $sum: "$audioDuration" },
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+  
+  return result[0] || { totalDuration: 0, count: 0 };
+};
+
 // ============================================
-// Middleware / Hooks
+// Pre-save Middleware
 // ============================================
 
-
+// Validate audio message fields
+messageSchema.pre("save", function(next) {
+  if (this.type === "audio") {
+    // Content is optional for audio messages
+    // Set default content if not provided
+    if (!this.content) {
+      this.content = "🎤 Voice message";
+    }
+    
+    // Validate audio fields
+    if (!this.audioUrl) {
+      next(new Error("Audio URL is required for audio messages"));
+    }
+    
+    if (!this.audioDuration) {
+      next(new Error("Audio duration is required for audio messages"));
+    }
+  }
+  
+  next();
+});
 
 // Post-save middleware
 messageSchema.post("save", function(doc) {
-  console.log(`Message saved: ${doc._id} from ${doc.senderId}`);
+  console.log(`Message saved: ${doc._id} type: ${doc.type} from ${doc.senderId}`);
 });
 
 // ============================================

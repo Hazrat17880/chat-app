@@ -136,13 +136,15 @@ app.prepare().then(async () => {
       socket.emit('call_ready', { userId: userIdStr, ready: true });
     });
 
-    // ============ AUDIO CALL SIGNALING ============
+    // ============ AUDIO/VIDEO CALL SIGNALING ============
 
-    socket.on('call:initiate', ({ receiverId, callerName, callerAvatar }) => {
+    // ===== CALL INITIATE - UPDATED WITH VIDEO FLAG =====
+    socket.on('call:initiate', ({ receiverId, callerName, callerAvatar, isVideo }) => {
       console.log(`📞 call:initiate received:`, {
         callerId: socket.data.userId,
         receiverId,
         callerName,
+        isVideo: isVideo || false, // ← ADD THIS
         socketId: socket.id
       });
 
@@ -185,13 +187,15 @@ app.prepare().then(async () => {
         return;
       }
 
-      console.log(`📞 Call initiated from ${callerId} to ${receiverIdStr}`);
+      const callType = isVideo ? '📹 Video' : '📞 Audio';
+      console.log(`${callType} call initiated from ${callerId} to ${receiverIdStr}`);
       
       global.activeCalls.set(callerId, {
         callerId: callerId,
         receiverId: receiverIdStr,
         callerName: callerName,
         callerAvatar: callerAvatar,
+        isVideo: isVideo || false, // ← ADD THIS
         startedAt: Date.now()
       });
 
@@ -199,12 +203,14 @@ app.prepare().then(async () => {
       io.to(receiverSocketId).emit('call:incoming', {
         from: callerId,
         callerName: callerName || 'Unknown',
-        callerAvatar: callerAvatar || null
+        callerAvatar: callerAvatar || null,
+        isVideo: isVideo || false // ← ADD THIS - Send video flag to receiver
       });
 
       socket.emit('call:initiated', { 
         receiverId: receiverIdStr,
-        status: 'ringing'
+        status: 'ringing',
+        isVideo: isVideo || false
       });
     });
 
@@ -296,16 +302,14 @@ app.prepare().then(async () => {
       }
     });
 
-    // ===== END CALL - FIXED =====
+    // ===== END CALL =====
     socket.on('call:end', ({ receiverId }) => {
       const callerId = socket.data.userId;
       console.log(`📞 Call ended by ${callerId} with ${receiverId}`);
       
-      // Get the receiver's socket ID
       const receiverSocketId = global.onlineUsers.get(receiverId);
       const callerSocketId = global.onlineUsers.get(callerId);
       
-      // Notify the receiver that the call ended
       if (receiverSocketId) {
         console.log(`📤 Sending call:ended to receiver ${receiverId} (socket: ${receiverSocketId})`);
         io.to(receiverSocketId).emit('call:ended', {
@@ -314,7 +318,6 @@ app.prepare().then(async () => {
         });
       }
       
-      // Also notify the caller (in case they need confirmation)
       if (callerSocketId && callerSocketId !== receiverSocketId) {
         console.log(`📤 Sending call:ended to caller ${callerId} (socket: ${callerSocketId})`);
         io.to(callerSocketId).emit('call:ended', {
@@ -323,7 +326,6 @@ app.prepare().then(async () => {
         });
       }
 
-      // Clean up call data from both users
       global.activeCalls.delete(callerId);
       global.activeCalls.delete(receiverId);
       
@@ -341,7 +343,7 @@ app.prepare().then(async () => {
       }
     });
 
-    // ============ END AUDIO CALL SIGNALING ============
+    // ============ END CALL SIGNALING ============
 
     // ===== SEND MESSAGE =====
     socket.on('send_message', async (data) => {
@@ -486,7 +488,7 @@ app.prepare().then(async () => {
       }
     });
 
-    // ===== DISCONNECT - FIXED =====
+    // ===== DISCONNECT =====
     socket.on('disconnect', (reason) => {
       const userId = socket.data.userId;
       console.log(`🔴 Client disconnected: ${socket.id}, reason: ${reason}, userId: ${userId}`);
@@ -497,7 +499,6 @@ app.prepare().then(async () => {
           const callData = global.activeCalls.get(userId);
           const otherUserId = callData.callerId === userId ? callData.receiverId : callData.callerId;
           
-          // Notify the other user that the call ended due to disconnect
           const otherSocketId = global.onlineUsers.get(otherUserId);
           if (otherSocketId) {
             console.log(`📤 Notifying ${otherUserId} that ${userId} disconnected during call`);
@@ -507,19 +508,15 @@ app.prepare().then(async () => {
             });
           }
           
-          // Clean up call data
           global.activeCalls.delete(userId);
           global.activeCalls.delete(otherUserId);
           console.log(`📞 Call cleaned up due to disconnect: ${userId}`);
         }
 
-        // Check if this socket is still the one registered for this user
         const registeredSocketId = global.onlineUsers.get(userId);
         if (registeredSocketId === socket.id) {
           global.onlineUsers.delete(userId);
           console.log(`🔴 User ${userId} offline. Total: ${global.onlineUsers.size}`);
-          
-          // Broadcast updated list
           broadcastOnlineUsers();
         } else {
           console.log(`⚠️ User ${userId} has a different socket registered: ${registeredSocketId}, ignoring disconnect`);

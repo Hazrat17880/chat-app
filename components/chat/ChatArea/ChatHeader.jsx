@@ -6,7 +6,8 @@ export default function ChatHeader({
   isTyping,
   onBack,
   onUserDetails,
-  onCallStart,
+  onAudioCall,  // ← Changed from onCallStart
+  onVideoCall,  // ← New
 }) {
   const [showProfileModal, setShowProfileModal] = useState(false);
 
@@ -29,12 +30,21 @@ export default function ChatHeader({
     if (onUserDetails) onUserDetails();
   };
 
-  const handleCallClick = () => {
-    console.log("📞 Call button clicked in ChatHeader");
-    if (onCallStart) {
-      onCallStart();
+  const handleAudioCallClick = () => {
+    console.log("📞 Audio call button clicked in ChatHeader");
+    if (onAudioCall) {
+      onAudioCall();
     } else {
-      console.error("❌ onCallStart is not defined");
+      console.error("❌ onAudioCall is not defined");
+    }
+  };
+
+  const handleVideoCallClick = () => {
+    console.log("📹 Video call button clicked in ChatHeader");
+    if (onVideoCall) {
+      onVideoCall();
+    } else {
+      console.error("❌ onVideoCall is not defined");
     }
   };
 
@@ -166,7 +176,7 @@ export default function ChatHeader({
               <button
                 onClick={() => {
                   setShowProfileModal(false);
-                  handleCallClick();
+                  handleAudioCallClick();
                 }}
                 className="flex-1 py-2.5 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
               >
@@ -178,7 +188,7 @@ export default function ChatHeader({
               <button
                 onClick={() => {
                   setShowProfileModal(false);
-                  // Handle video call if available
+                  handleVideoCallClick();
                 }}
                 className="flex-1 py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
               >
@@ -272,7 +282,7 @@ export default function ChatHeader({
 
           {/* ===== AUDIO CALL BUTTON - ALWAYS VISIBLE ===== */}
           <button
-            onClick={handleCallClick}
+            onClick={handleAudioCallClick}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
             title="Start Audio Call"
           >
@@ -283,6 +293,7 @@ export default function ChatHeader({
 
           {/* ===== VIDEO CALL BUTTON - ALWAYS VISIBLE ===== */}
           <button 
+            onClick={handleVideoCallClick}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
             title="Start Video Call"
           >

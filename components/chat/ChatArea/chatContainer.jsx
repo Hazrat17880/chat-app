@@ -36,22 +36,28 @@ export default function ChatContainer() {
     connect,
   } = useSocket({ userId: userId || 'test-user-id' });
 
-  // ============ AUDIO CALL HOOK - PASS AUTH ============
+  // ============ CALL HOOK - WITH VIDEO SUPPORT ============
   const {
     callStatus,
     isMuted,
+    isVideoOff,
     callDuration,
+    remoteStream,
+    localStream,
     incomingCall,
-    startCall,
+    isVideoCall,
+    startAudioCall,
+    startVideoCall,
     answerCall,
     rejectCall,
     endCall,
-    toggleMute
+    toggleMute,
+    toggleVideo
   } = useCall({ 
     userId, 
     selectedUser, 
     socket,
-    auth // ← PASS AUTH HERE
+    auth
   });
   // ========================================
 
@@ -75,8 +81,7 @@ export default function ChatContainer() {
   // ===== HELPER FUNCTION TO GET USER ID =====
   const getUserRealId = (user) => {
     if (!user) return null;
-    // Try different possible ID fields
-    const id = user._id || user.id || user.userId;
+    const id = user.userId;
     console.log('🔍 Extracted user ID:', id, 'from user:', user);
     return id;
   };
@@ -88,12 +93,11 @@ export default function ChatContainer() {
     console.log("👤 User ID extracted:", userId);
     console.log("👤 Is user online?", onlineUsers.includes(userId));
     
-    // Make sure we have a valid user object with the ID
     if (userId) {
       const userWithId = {
         ...user,
-        _id: userId, // Ensure _id is set
-        id: userId,  // Ensure id is set
+        _id: userId,
+        id: userId,
       };
       setSelectedUser(userWithId);
     } else {
@@ -184,9 +188,61 @@ export default function ChatContainer() {
     };
   }, [socket, selectedUser, markAsRead]);
 
-  // Send message handler
+  // ===== SEND MESSAGE HANDLER - SUPPORTS TEXT AND VOICE =====
   const handleSendMessage = (content) => {
-    if (!selectedUser || !content.trim()) return;
+    // ===== VOICE MESSAGE =====
+    if (typeof content === 'object' && content !== null && content.type === 'audio') {
+      if (!selectedUser) {
+        console.error('❌ No user selected');
+        return;
+      }
+
+      if (!isConnected) {
+        console.warn("⚠️ Not connected");
+        return;
+      }
+
+      const receiverId = getUserRealId(selectedUser);
+      if (!receiverId) {
+        console.error('❌ No receiver ID found');
+        return;
+      }
+
+      const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // Create temp message for voice
+      const tempMessage = {
+        _id: tempId,
+        senderId: userId,
+        receiverId,
+        content: '🎤 Voice message',
+        type: 'audio',
+        audioUrl: content.audioUrl || content.audio,
+        audioDuration: content.duration || content.audioDuration || 0,
+        status: 'sending',
+        createdAt: new Date().toISOString(),
+        sender: 'me',
+      };
+
+      setMessages((prev) => [...prev, tempMessage]);
+
+      // Send voice message via socket
+      sendMessage({
+        receiverId,
+        content: '🎤 Voice message',
+        type: 'audio',
+        audioUrl: content.audioUrl || content.audio,
+        audioDuration: content.duration || content.audioDuration || 0,
+        tempId: tempId,
+      });
+      return;
+    }
+
+    // ===== TEXT MESSAGE =====
+    // If content is not a string, convert it
+    const textContent = typeof content === 'string' ? content : '';
+    
+    if (!selectedUser || !textContent.trim()) return;
 
     if (!isConnected) {
       console.warn("⚠️ Not connected");
@@ -194,8 +250,6 @@ export default function ChatContainer() {
     }
 
     const receiverId = getUserRealId(selectedUser);
-    console.log("📤 Sending message to:", selectedUser, "with ID:", receiverId);
-
     if (!receiverId) {
       console.error('❌ No receiver ID found');
       return;
@@ -207,7 +261,7 @@ export default function ChatContainer() {
       _id: tempId,
       senderId: userId,
       receiverId,
-      content: content.trim(),
+      content: textContent.trim(),
       type: 'text',
       status: 'sending',
       createdAt: new Date().toISOString(),
@@ -218,7 +272,8 @@ export default function ChatContainer() {
 
     sendMessage({
       receiverId,
-      content: content.trim(),
+      content: textContent.trim(),
+      type: 'text',
       tempId: tempId,
     });
   };
@@ -262,6 +317,48 @@ export default function ChatContainer() {
     }
   }, [selectedUser, onlineUsers]);
 
+  // ===== HANDLE CALL START =====
+  const handleCallStart = (type = 'audio') => {
+    console.log(`📞 ${type} call button clicked in ChatContainer`);
+    console.log('📞 Selected user:', selectedUser);
+    
+    const receiverId = getUserRealId(selectedUser);
+    console.log('📞 Receiver ID:', receiverId);
+    
+    if (!receiverId) {
+      console.error('❌ No receiver ID found for call');
+      return;
+    }
+
+    // Check if the user is online
+    const isOnline = onlineUsers.includes(receiverId);
+    if (!isOnline) {
+      console.warn(`⚠️ User ${receiverId} is not online`);
+      alert('User is not online');
+      return;
+    }
+
+    // Get the caller's name from auth
+    const callerName = auth?.user?.username || auth?.user?.fullName || auth?.user?.name || 'User';
+    const callerAvatar = auth?.user?.avatar || null;
+
+    console.log(`📞 Caller name: ${callerName}, Type: ${type}`);
+
+    // Make sure selectedUser has the ID in the right place
+    const userWithCorrectId = {
+      ...selectedUser,
+      _id: receiverId,
+      id: receiverId,
+    };
+    
+    // Start call based on type
+    if (type === 'video') {
+      startVideoCall(userWithCorrectId);
+    } else {
+      startAudioCall(userWithCorrectId);
+    }
+  };
+
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Sidebar */}
@@ -284,44 +381,8 @@ export default function ChatContainer() {
               isTyping={receiverTyping}
               onBack={() => setIsMobileMenuOpen(true)}
               onUserDetails={() => {}}
-              onCallStart={() => {
-                console.log('📞 Call button clicked in ChatContainer');
-                console.log('📞 Selected user:', selectedUser);
-                const receiverId = getUserRealId(selectedUser);
-                console.log('📞 Receiver ID:', receiverId);
-                
-                if (!receiverId) {
-                  console.error('❌ No receiver ID found for call');
-                  return;
-                }
-
-                // Check if the user is online
-                const isOnline = onlineUsers.includes(receiverId);
-                if (!isOnline) {
-                  console.warn(`⚠️ User ${receiverId} is not online`);
-                  alert('User is not online');
-                  return;
-                }
-
-                // Get the caller's name from auth
-                const callerName = auth?.user?.username || auth?.user?.fullName || auth?.user?.name || 'User';
-                const callerAvatar = auth?.user?.avatar || null;
-
-                console.log('📞 Caller name:', callerName);
-
-                // Make sure selectedUser has the ID in the right place
-                const userWithCorrectId = {
-                  ...selectedUser,
-                  _id: receiverId,
-                  id: receiverId,
-                };
-                
-                // Start call with caller info
-                startCall(userWithCorrectId, {
-                  callerName: callerName,
-                  callerAvatar: callerAvatar
-                });
-              }}
+              onAudioCall={() => handleCallStart('audio')}
+              onVideoCall={() => handleCallStart('video')}
             />
 
             <Messages 
@@ -340,21 +401,24 @@ export default function ChatContainer() {
         )}
       </div>
 
-      {/* Call Interface - Updated to show caller name */}
+      {/* Call Interface - With Video Support */}
       <CallInterface
         isOpen={callStatus !== 'idle' || !!incomingCall}
         onClose={endCall}
         callerName={
-          // For incoming calls, show the caller's name from the incomingCall object
-          // For outgoing calls, show the selected user's name
           incomingCall?.callerName || 
           userForHeader?.name || 
           'Unknown Caller'
         }
         callStatus={callStatus}
         isMuted={isMuted}
+        isVideoOff={isVideoOff}
         duration={callDuration}
+        remoteStream={remoteStream}
+        localStream={localStream}
+        isVideoCall={isVideoCall}
         onMuteToggle={toggleMute}
+        onVideoToggle={toggleVideo}
         onEndCall={endCall}
         isIncoming={!!incomingCall}
         onAccept={answerCall}

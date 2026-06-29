@@ -5,13 +5,15 @@ import { useRouter } from "next/navigation";
 
 export default function SidebarHeader({ 
   onMenuToggle, 
-  user, 
-  users = [], 
+  users, 
+  // users = [], 
   onContactAdded,
   onUserSelect 
 }) {
   const router = useRouter();
   const auth = useSelector((state) => state.auth);
+
+  console.log("your selected user are :",users);
   
 
   const [showProfileModal, setShowProfileModal] = useState(false);

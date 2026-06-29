@@ -12,24 +12,21 @@ const handle = app.getRequestHandler();
 
 // Store online users globally
 global.onlineUsers = new Map();
+global.activeCalls = new Map();
 
 // MongoDB connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/chat-application';
 
-// Import Message model
 let Message;
 
 app.prepare().then(async () => {
-  // Connect to MongoDB
   try {
     await mongoose.connect(MONGODB_URI);
     console.log('✅ MongoDB connected in server');
     
-    // Import models after connection - FIXED IMPORT
     const messageModule = require('./models/Message');
     Message = messageModule.default || messageModule;
     console.log('✅ Message model loaded');
-    console.log('✅ Message model name:', Message.modelName);
   } catch (error) {
     console.error('❌ MongoDB connection error:', error);
   }
@@ -39,7 +36,6 @@ app.prepare().then(async () => {
     handle(req, res, parsedUrl);
   });
 
-  // Initialize Socket.io
   const io = new Server(server, {
     path: '/api/socket',
     addTrailingSlash: false,
@@ -51,29 +47,309 @@ app.prepare().then(async () => {
     transports: ['websocket', 'polling'],
     allowEIO3: true,
     pingTimeout: 60000,
+    pingInterval: 25000,
   });
 
-  // Socket events
+  // ============ HELPER FUNCTION TO LOG ONLINE USERS ============
+  const logOnlineUsers = () => {
+    const users = Array.from(global.onlineUsers.keys());
+    console.log(`📋 Online users (${users.length}):`, users);
+    return users;
+  };
+
+  // ============ BROADCAST ONLINE USERS ============
+  const broadcastOnlineUsers = () => {
+    const users = Array.from(global.onlineUsers.keys());
+    console.log(`📢 Broadcasting online users:`, users);
+    io.emit('online_users', users);
+    return users;
+  };
+
   io.on('connection', (socket) => {
     console.log('🟢 New client connected:', socket.id);
+    console.log('🔍 Total connections:', io.engine.clientsCount);
 
-    // User connected
+    // ===== USER CONNECTED =====
     socket.on('user_connected', (userId) => {
-      global.onlineUsers.set(userId, socket.id);
-      socket.data.userId = userId;
-      io.emit('online_users', Array.from(global.onlineUsers.keys()));
-      console.log(`✅ User ${userId} online. Total: ${global.onlineUsers.size}`);
+      console.log(`📥 user_connected event received for userId: ${userId} from socket: ${socket.id}`);
+      
+      if (!userId) {
+        console.error('❌ No userId provided in user_connected event');
+        return;
+      }
+
+      const userIdStr = String(userId);
+      
+      const existingSocketId = global.onlineUsers.get(userIdStr);
+      if (existingSocketId && existingSocketId !== socket.id) {
+        console.log(`⚠️ User ${userIdStr} already connected with socket ${existingSocketId}, replacing with ${socket.id}`);
+        const oldSocket = io.sockets.sockets.get(existingSocketId);
+        if (oldSocket) {
+          oldSocket.emit('user_offline', { reason: 'Logged in elsewhere' });
+          oldSocket.disconnect(true);
+        }
+      }
+
+      global.onlineUsers.set(userIdStr, socket.id);
+      socket.data.userId = userIdStr;
+      
+      console.log(`✅ User ${userIdStr} is now online. Total: ${global.onlineUsers.size}`);
+      logOnlineUsers();
+      
+      broadcastOnlineUsers();
+      
+      socket.emit('online_users', Array.from(global.onlineUsers.keys()));
+      
+      socket.emit('user_connected_confirmation', { 
+        userId: userIdStr, 
+        onlineUsers: Array.from(global.onlineUsers.keys()) 
+      });
     });
 
-    // Send message - FIXED to save to database
+    // ===== GET ONLINE USERS =====
+    socket.on('get_online_users', () => {
+      const users = Array.from(global.onlineUsers.keys());
+      console.log(`📋 Sending online users to ${socket.id}:`, users);
+      socket.emit('online_users', users);
+    });
+
+    // ===== GET MY ONLINE STATUS =====
+    socket.on('check_online_status', (userId) => {
+      const userIdStr = String(userId);
+      const isOnline = global.onlineUsers.has(userIdStr);
+      console.log(`🔍 User ${userIdStr} online status: ${isOnline}`);
+      socket.emit('online_status', { userId: userIdStr, isOnline });
+    });
+
+    // ===== USER JOINED FOR CALL =====
+    socket.on('user_ready_for_calls', (userId) => {
+      const userIdStr = String(userId);
+      console.log(`📞 User ${userIdStr} is ready for calls`);
+      
+      if (!global.onlineUsers.has(userIdStr)) {
+        global.onlineUsers.set(userIdStr, socket.id);
+        socket.data.userId = userIdStr;
+        broadcastOnlineUsers();
+        console.log(`✅ User ${userIdStr} registered via user_ready_for_calls`);
+      }
+      
+      socket.emit('call_ready', { userId: userIdStr, ready: true });
+    });
+
+    // ============ AUDIO CALL SIGNALING ============
+
+    socket.on('call:initiate', ({ receiverId, callerName, callerAvatar }) => {
+      console.log(`📞 call:initiate received:`, {
+        callerId: socket.data.userId,
+        receiverId,
+        callerName,
+        socketId: socket.id
+      });
+
+      logOnlineUsers();
+
+      const callerId = String(socket.data.userId);
+      const receiverIdStr = String(receiverId);
+
+      if (!callerId) {
+        console.error('❌ Caller ID is missing');
+        socket.emit('call:error', { error: 'Your user ID is not registered' });
+        return;
+      }
+
+      const receiverSocketId = global.onlineUsers.get(receiverIdStr);
+      
+      console.log(`🔍 Looking for receiver ${receiverIdStr}:`, {
+        receiverSocketId,
+        onlineUsers: Array.from(global.onlineUsers.keys())
+      });
+
+      if (!receiverSocketId) {
+        console.log(`❌ Receiver ${receiverIdStr} is NOT online. Available users:`, Array.from(global.onlineUsers.keys()));
+        socket.emit('call:error', { error: 'User is offline' });
+        return;
+      }
+
+      if (!global.onlineUsers.has(callerId)) {
+        console.log(`⚠️ Caller ${callerId} is not in onlineUsers map. Re-adding...`);
+        global.onlineUsers.set(callerId, socket.id);
+        broadcastOnlineUsers();
+      }
+
+      if (global.activeCalls.has(receiverIdStr) || global.activeCalls.has(callerId)) {
+        console.log(`❌ User is already in a call:`, {
+          receiverInCall: global.activeCalls.has(receiverIdStr),
+          callerInCall: global.activeCalls.has(callerId)
+        });
+        socket.emit('call:error', { error: 'User is already in a call' });
+        return;
+      }
+
+      console.log(`📞 Call initiated from ${callerId} to ${receiverIdStr}`);
+      
+      global.activeCalls.set(callerId, {
+        callerId: callerId,
+        receiverId: receiverIdStr,
+        callerName: callerName,
+        callerAvatar: callerAvatar,
+        startedAt: Date.now()
+      });
+
+      console.log(`📤 Sending call:incoming to ${receiverIdStr} (socket: ${receiverSocketId})`);
+      io.to(receiverSocketId).emit('call:incoming', {
+        from: callerId,
+        callerName: callerName || 'Unknown',
+        callerAvatar: callerAvatar || null
+      });
+
+      socket.emit('call:initiated', { 
+        receiverId: receiverIdStr,
+        status: 'ringing'
+      });
+    });
+
+    // ===== USER ACCEPTING A CALL =====
+    socket.on('call:accept', ({ callerId }) => {
+      const callerIdStr = String(callerId);
+      const callerSocketId = global.onlineUsers.get(callerIdStr);
+      
+      console.log(`📞 call:accept:`, {
+        receiverId: socket.data.userId,
+        callerId: callerIdStr,
+        callerSocketId
+      });
+
+      if (!callerSocketId) {
+        console.error(`❌ Caller ${callerIdStr} is no longer online`);
+        socket.emit('call:error', { error: 'Caller is no longer online' });
+        return;
+      }
+
+      console.log(`📞 Call accepted by ${socket.data.userId} from ${callerIdStr}`);
+      
+      const receiverIdStr = String(socket.data.userId);
+      const existingCall = global.activeCalls.get(receiverIdStr) || {};
+      global.activeCalls.set(receiverIdStr, {
+        ...existingCall,
+        status: 'connected',
+        connectedAt: Date.now()
+      });
+
+      io.to(callerSocketId).emit('call:accepted', {
+        receiverId: receiverIdStr,
+        receiverName: socket.data.username || 'User'
+      });
+    });
+
+    // ===== USER REJECTING A CALL =====
+    socket.on('call:reject', ({ callerId }) => {
+      const callerIdStr = String(callerId);
+      const callerSocketId = global.onlineUsers.get(callerIdStr);
+      
+      if (callerSocketId) {
+        console.log(`📞 Call rejected by ${socket.data.userId} from ${callerIdStr}`);
+        io.to(callerSocketId).emit('call:rejected', {
+          receiverId: socket.data.userId
+        });
+      }
+
+      global.activeCalls.delete(socket.data.userId);
+      global.activeCalls.delete(callerIdStr);
+    });
+
+    // ===== SEND WEBRTC OFFER =====
+    socket.on('call:offer', ({ receiverId, offer }) => {
+      const receiverSocketId = global.onlineUsers.get(receiverId);
+      
+      if (receiverSocketId) {
+        console.log(`📤 Sending offer from ${socket.data.userId} to ${receiverId}`);
+        io.to(receiverSocketId).emit('call:offer', {
+          from: socket.data.userId,
+          offer: offer
+        });
+      }
+    });
+
+    // ===== SEND WEBRTC ANSWER =====
+    socket.on('call:answer', ({ callerId, answer }) => {
+      const callerSocketId = global.onlineUsers.get(callerId);
+      
+      if (callerSocketId) {
+        console.log(`📤 Sending answer from ${socket.data.userId} to ${callerId}`);
+        io.to(callerSocketId).emit('call:answer', {
+          from: socket.data.userId,
+          answer: answer
+        });
+      }
+    });
+
+    // ===== SEND ICE CANDIDATE =====
+    socket.on('call:ice-candidate', ({ receiverId, candidate }) => {
+      const receiverSocketId = global.onlineUsers.get(receiverId);
+      
+      if (receiverSocketId) {
+        console.log(`🧊 Sending ICE candidate from ${socket.data.userId} to ${receiverId}`);
+        io.to(receiverSocketId).emit('call:ice-candidate', {
+          from: socket.data.userId,
+          candidate: candidate
+        });
+      }
+    });
+
+    // ===== END CALL - FIXED =====
+    socket.on('call:end', ({ receiverId }) => {
+      const callerId = socket.data.userId;
+      console.log(`📞 Call ended by ${callerId} with ${receiverId}`);
+      
+      // Get the receiver's socket ID
+      const receiverSocketId = global.onlineUsers.get(receiverId);
+      const callerSocketId = global.onlineUsers.get(callerId);
+      
+      // Notify the receiver that the call ended
+      if (receiverSocketId) {
+        console.log(`📤 Sending call:ended to receiver ${receiverId} (socket: ${receiverSocketId})`);
+        io.to(receiverSocketId).emit('call:ended', {
+          from: callerId,
+          reason: 'caller_ended'
+        });
+      }
+      
+      // Also notify the caller (in case they need confirmation)
+      if (callerSocketId && callerSocketId !== receiverSocketId) {
+        console.log(`📤 Sending call:ended to caller ${callerId} (socket: ${callerSocketId})`);
+        io.to(callerSocketId).emit('call:ended', {
+          from: receiverId,
+          reason: 'caller_ended'
+        });
+      }
+
+      // Clean up call data from both users
+      global.activeCalls.delete(callerId);
+      global.activeCalls.delete(receiverId);
+      
+      console.log(`📞 Call data cleaned up for ${callerId} and ${receiverId}`);
+    });
+
+    // ===== USER BUSY =====
+    socket.on('call:busy', ({ callerId }) => {
+      const callerSocketId = global.onlineUsers.get(callerId);
+      
+      if (callerSocketId) {
+        io.to(callerSocketId).emit('call:busy', {
+          receiverId: socket.data.userId
+        });
+      }
+    });
+
+    // ============ END AUDIO CALL SIGNALING ============
+
+    // ===== SEND MESSAGE =====
     socket.on('send_message', async (data) => {
       try {
         const { senderId, receiverId, content, type = 'text', tempId } = data;
         
         console.log(`📤 Sending message from ${senderId} to ${receiverId}:`, content);
-        console.log('📤 Message model available:', !!Message);
 
-        // Create message object with ObjectId
         const messageData = {
           senderId: new mongoose.Types.ObjectId(senderId),
           receiverId: new mongoose.Types.ObjectId(receiverId),
@@ -84,7 +360,6 @@ app.prepare().then(async () => {
 
         let savedMessage = null;
 
-        // Save to database if Message model is available
         if (Message) {
           try {
             console.log('📝 Creating new message in database...');
@@ -92,7 +367,6 @@ app.prepare().then(async () => {
             savedMessage = await newMessage.save();
             console.log('✅ Message saved to database with ID:', savedMessage._id);
             
-            // Populate sender details
             savedMessage = await Message.findById(savedMessage._id)
               .populate('senderId', 'username email avatar online fullName')
               .populate('receiverId', 'username email avatar online fullName');
@@ -100,13 +374,11 @@ app.prepare().then(async () => {
             console.log('✅ Message populated:', savedMessage._id);
           } catch (dbError) {
             console.error('❌ Error saving message to database:', dbError.message);
-            console.error('Error details:', dbError);
           }
         } else {
           console.warn('⚠️ Message model not available');
         }
 
-        // Use saved message if available, otherwise use the temporary one
         const messageToSend = savedMessage || {
           _id: tempId || Date.now().toString(),
           senderId,
@@ -117,17 +389,14 @@ app.prepare().then(async () => {
           createdAt: new Date().toISOString(),
         };
 
-        // Check if receiver is online
         const receiverSocketId = global.onlineUsers.get(receiverId);
         
         if (receiverSocketId) {
-          // Send to receiver
           io.to(receiverSocketId).emit('receive_message', {
             ...messageToSend,
             status: 'delivered'
           });
           
-          // Update message status if saved in DB
           if (savedMessage) {
             try {
               await savedMessage.markAsDelivered(receiverId);
@@ -137,7 +406,6 @@ app.prepare().then(async () => {
             }
           }
           
-          // Notify sender about delivery
           socket.emit('message_delivered', {
             messageId: messageToSend._id,
             status: 'delivered'
@@ -146,7 +414,6 @@ app.prepare().then(async () => {
           console.log(`ℹ️ Receiver ${receiverId} is offline`);
         }
 
-        // Send confirmation back to sender with the message
         socket.emit('message_sent', messageToSend);
 
       } catch (error) {
@@ -155,7 +422,7 @@ app.prepare().then(async () => {
       }
     });
 
-    // Typing indicator
+    // ===== TYPING INDICATOR =====
     socket.on('typing', ({ receiverId, isTyping }) => {
       const receiverSocketId = global.onlineUsers.get(receiverId);
       if (receiverSocketId) {
@@ -166,7 +433,7 @@ app.prepare().then(async () => {
       }
     });
 
-    // Message read
+    // ===== MESSAGE READ =====
     socket.on('message_read', async ({ messageId, senderId }) => {
       try {
         if (Message && messageId) {
@@ -189,7 +456,7 @@ app.prepare().then(async () => {
       }
     });
 
-    // Fetch history - FIXED
+    // ===== FETCH HISTORY =====
     socket.on('fetch_history', async ({ userId, otherUserId, limit = 50 }) => {
       try {
         console.log(`📚 Fetching history for ${userId} and ${otherUserId}`);
@@ -219,18 +486,50 @@ app.prepare().then(async () => {
       }
     });
 
-    // Disconnect
-    socket.on('disconnect', () => {
+    // ===== DISCONNECT - FIXED =====
+    socket.on('disconnect', (reason) => {
       const userId = socket.data.userId;
+      console.log(`🔴 Client disconnected: ${socket.id}, reason: ${reason}, userId: ${userId}`);
+      
       if (userId) {
-        global.onlineUsers.delete(userId);
-        io.emit('online_users', Array.from(global.onlineUsers.keys()));
-        console.log(`🔴 User ${userId} offline. Total: ${global.onlineUsers.size}`);
+        // Check if this user was in an active call
+        if (global.activeCalls.has(userId)) {
+          const callData = global.activeCalls.get(userId);
+          const otherUserId = callData.callerId === userId ? callData.receiverId : callData.callerId;
+          
+          // Notify the other user that the call ended due to disconnect
+          const otherSocketId = global.onlineUsers.get(otherUserId);
+          if (otherSocketId) {
+            console.log(`📤 Notifying ${otherUserId} that ${userId} disconnected during call`);
+            io.to(otherSocketId).emit('call:ended', {
+              from: userId,
+              reason: 'disconnected'
+            });
+          }
+          
+          // Clean up call data
+          global.activeCalls.delete(userId);
+          global.activeCalls.delete(otherUserId);
+          console.log(`📞 Call cleaned up due to disconnect: ${userId}`);
+        }
+
+        // Check if this socket is still the one registered for this user
+        const registeredSocketId = global.onlineUsers.get(userId);
+        if (registeredSocketId === socket.id) {
+          global.onlineUsers.delete(userId);
+          console.log(`🔴 User ${userId} offline. Total: ${global.onlineUsers.size}`);
+          
+          // Broadcast updated list
+          broadcastOnlineUsers();
+        } else {
+          console.log(`⚠️ User ${userId} has a different socket registered: ${registeredSocketId}, ignoring disconnect`);
+        }
       }
+      
+      console.log(`🔍 Total connections after disconnect: ${io.engine.clientsCount}`);
     });
   });
 
-  // Store io globally for other modules
   global.io = io;
 
   const PORT = process.env.PORT || 3000;

@@ -7,7 +7,9 @@ export default function UserList({ users, selectedUser, onUserSelect, activeTab 
     if (activeTab === "favorite") return user.favorite === true;
     if (activeTab === "groups") return user.isGroup === true;
     return true;
+    console.log("your selected user are in the user list :",user);
   });
+
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -15,7 +17,7 @@ export default function UserList({ users, selectedUser, onUserSelect, activeTab 
         <UserItem
           key={user.id}
           user={user}
-          isSelected={selectedUser?.id === user.id}
+          isSelected={selectedUser?.userId === user.userId}
           onSelect={onUserSelect}
         />
       ))}

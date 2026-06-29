@@ -59,6 +59,7 @@ export default function Sidebar({
 
       const result = await response.json();
 
+
       console.log("Friend contacts:", result);
 
       if (result.success) {
